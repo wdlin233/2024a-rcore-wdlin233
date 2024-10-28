@@ -58,6 +58,7 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
             let syscall_id = cx.x[17];
             cx.x[10] = syscall(syscall_id, [cx.x[10], cx.x[11], cx.x[12]]) as usize;
             current_task.syscall_times[syscall_id] += 1;
+            //println!("The value is: {}", current_task.syscall_times[syscall_id]);
             current_task.total_time = get_time_ms();
         }
         Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {

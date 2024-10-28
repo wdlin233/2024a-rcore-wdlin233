@@ -140,10 +140,10 @@ impl TaskManager {
     }
 
     /// 获取当前任务
-    pub fn get_current_task(&self) -> TaskControlBlock{
+    pub fn get_current_task(&self) -> TaskControlBlock {
         let inner = self.inner.exclusive_access();
-        // 返回当前任务的引用
-        inner.tasks[inner.current_task].clone()
+        let current = inner.current_task;
+        inner.tasks[current]
     }
 }
 
