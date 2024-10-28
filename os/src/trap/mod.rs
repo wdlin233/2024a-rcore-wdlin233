@@ -15,8 +15,8 @@
 mod context;
 
 use crate::syscall::syscall;
-use crate::task::{exit_current_and_run_next, suspend_current_and_run_next, TASK_MANAGER, TaskControlBlock};
-use crate::timer::{get_time_ms, set_next_trigger};
+use crate::task::{exit_current_and_run_next, suspend_current_and_run_next, update_syscall_times};
+use crate::timer::set_next_trigger;
 use core::arch::global_asm;
 use riscv::register::{
     mtvec::TrapMode,
@@ -53,13 +53,10 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
         Trap::Exception(Exception::UserEnvCall) => {
             // jump to next instruction anyway
             cx.sepc += 4;
-            let mut current_task: TaskControlBlock = TASK_MANAGER.get_current_task();
             // get system call return value
             let syscall_id = cx.x[17];
             cx.x[10] = syscall(syscall_id, [cx.x[10], cx.x[11], cx.x[12]]) as usize;
-            current_task.syscall_times[syscall_id] += 1;
-            //println!("The value is: {}", current_task.syscall_times[syscall_id]);
-            current_task.total_time = get_time_ms();
+            update_syscall_times(syscall_id);
         }
         Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {
             println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.", stval, cx.sepc);
