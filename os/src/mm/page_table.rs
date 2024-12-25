@@ -1,9 +1,10 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
 
-use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
+use super::{frame_alloc, FrameTracker, PhysAddr, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
+use riscv::register::satp;
 
 bitflags! {
     /// page table entry flags
@@ -141,6 +142,7 @@ impl PageTable {
     }
     /// get the page table entry from the virtual page number
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
+        // return a copy of PTE
         self.find_pte(vpn).map(|pte| *pte)
     }
     /// get the token from the page table
@@ -170,4 +172,13 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
         start = end_va.into();
     }
     v
+}
+
+pub fn from_va_to_pa(satp: usize, ptr: usize) -> usize{
+    let page_table = PageTable::from_token(satp); // return Self
+    let v_add = VirtAddr::from(ptr);
+    let vpn = VirtPageNum::from(v_add);
+    let ppn = page_table.translate(vpn).unwrap().ppn();
+    let pa = PhysAddr::from(ppn);
+    pa.into()
 }

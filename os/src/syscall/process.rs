@@ -1,9 +1,8 @@
 //! Process management syscalls
 use crate::{
-    config::MAX_SYSCALL_NUM,
-    task::{
-        change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
-    },
+    config::MAX_SYSCALL_NUM, mm::from_va_to_pa, task::{
+        change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus
+    }, timer::get_time_us
 };
 
 #[repr(C)]
@@ -42,8 +41,18 @@ pub fn sys_yield() -> isize {
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
+    // `ts` is a mutable pointer(address) to a `TimeVal` type. 
     trace!("kernel: sys_get_time");
-    -1
+    let time = get_time_us();
+    let ts = from_va_to_pa(current_user_token(), _ts) as *mut TimeVal;
+    // from virtual address to physics address
+    unsafe {
+        *ts = {
+            sec = time / 1_000_000;
+            usec = time % 1_000_000;
+        }
+    }
+    0  
 }
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
