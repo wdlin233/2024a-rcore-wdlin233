@@ -4,7 +4,7 @@ use super::{frame_alloc, FrameTracker, PhysAddr, PhysPageNum, StepByOne, VirtAdd
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
-use riscv::register::satp;
+//use riscv::register::satp;
 
 bitflags! {
     /// page table entry flags
@@ -174,11 +174,16 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
     v
 }
 
+/// Translate a virtual address to a physical address
 pub fn from_va_to_pa(satp: usize, ptr: usize) -> usize{
     let page_table = PageTable::from_token(satp); // return Self
     let v_add = VirtAddr::from(ptr);
-    let vpn = VirtPageNum::from(v_add);
+    //let vpn = VirtPageNum::from(v_add);
+    let vpn = v_add.floor();
     let ppn = page_table.translate(vpn).unwrap().ppn();
-    let pa = PhysAddr::from(ppn);
+    // let pa = usize::from(ppn) << 12 | v_add.page_offset();
+    // below code is OK
+    let pa = usize::from(PhysAddr::from(ppn)) | v_add.page_offset();
+    // too complex, just return the physical address
     pa.into()
 }

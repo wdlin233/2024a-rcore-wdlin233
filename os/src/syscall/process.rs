@@ -1,7 +1,7 @@
 //! Process management syscalls
 use crate::{
     config::MAX_SYSCALL_NUM, mm::from_va_to_pa, task::{
-        change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus
+        change_program_brk, current_user_token, exit_current_and_run_next, get_syscall_times, get_task_times, suspend_current_and_run_next, TaskStatus
     }, timer::get_time_us
 };
 
@@ -40,17 +40,17 @@ pub fn sys_yield() -> isize {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     // `ts` is a mutable pointer(address) to a `TimeVal` type. 
     trace!("kernel: sys_get_time");
     let time = get_time_us();
-    let ts = from_va_to_pa(current_user_token(), _ts) as *mut TimeVal;
+    let ts = from_va_to_pa(current_user_token(), ts as usize) as *mut TimeVal;
     // from virtual address to physics address
     unsafe {
-        *ts = {
-            sec = time / 1_000_000;
-            usec = time % 1_000_000;
-        }
+        *ts = TimeVal{
+            sec: time / 1_000_000,
+            usec: time % 1_000_000
+        };
     }
     0  
 }
@@ -58,9 +58,17 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
 /// YOUR JOB: Finish sys_task_info to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
-pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
-    trace!("kernel: sys_task_info NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
+    let ti = from_va_to_pa(current_user_token(), ti as usize) as *mut TaskInfo;
+    unsafe {
+        *ti = TaskInfo { 
+            // or, (*ti).status = TaskStatus::Ready;
+            status: TaskStatus::Running,
+            syscall_times: get_syscall_times(),
+            time: get_task_times()
+        };   
+    }
+    0
 }
 
 // YOUR JOB: Implement mmap.
