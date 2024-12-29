@@ -18,13 +18,18 @@ use crate::loader::{get_app_data, get_num_app};
 use crate::sync::UPSafeCell;
 use crate::timer::get_time_ms;
 use crate::trap::TrapContext;
+use crate::config::MAX_SYSCALL_NUM;
+use crate::mm::{VirtAddr, MapPermission};
+
 use alloc::vec::Vec;
 use lazy_static::*;
+//use riscv::addr::VirtAddr;
 use switch::__switch;
-pub use task::{TaskControlBlock, TaskStatus};
-use crate::config::MAX_SYSCALL_NUM;
 
+pub use task::{TaskControlBlock, TaskStatus};
 pub use context::TaskContext;
+
+
 
 /// The task manager, where all the tasks are managed.
 ///
@@ -178,6 +183,13 @@ impl TaskManager {
         let current = inner.current_task;
         inner.tasks[current].task_syscall_time[syscall_id] += 1;
     }
+
+    /// Insert a new framed area into the current 'Running' task's memory set.
+    fn insert_framed_area(&self, start_va: VirtAddr, end_va: VirtAddr, permission: MapPermission) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].memory_set.insert_framed_area(start_va, end_va, permission);
+    }
 }
 
 /// Run the first task in task list.
@@ -241,4 +253,9 @@ pub fn get_syscall_times() -> [u32; MAX_SYSCALL_NUM] {
 /// Update the current 'Running' task's syscall times.
 pub fn update_syscall_times(syscall_id: usize) {
     TASK_MANAGER.update_syscall_times(syscall_id);
+}
+
+/// Insert a new framed area into the current 'Running' task's memory set.
+pub fn insert_framed_area(start_va: VirtAddr, end_va: VirtAddr, permission: MapPermission) {
+    TASK_MANAGER.insert_framed_area(start_va, end_va, permission);
 }
