@@ -1,9 +1,9 @@
 //! Process management syscalls
-use riscv::{addr::Page, paging::PageTable};
+//use riscv::{addr::Page, paging::PageTable};
 
 use crate::{
-    config::MAX_SYSCALL_NUM, 
-    mm::{from_va_to_pa, VirtAddr, MapPermission}, 
+    config::{PAGE_SIZE, MAX_SYSCALL_NUM}, 
+    mm::{from_va_to_pa, VirtAddr, MapPermission, PageTable, StepByOne}, 
     task::{
         change_program_brk, current_user_token, exit_current_and_run_next, get_syscall_times, 
         get_task_times, suspend_current_and_run_next, TaskStatus, insert_framed_area
@@ -87,19 +87,21 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     let start_va = VirtAddr::from(start);
     let end_va = VirtAddr::from(end);
 
-    // let mut start_vpn = start_va.floor();
-    // let pt = PageTable::from_token(current_user_token());
-    // for _ in 0..((len + Page::SIZE - 1) / Page::SIZE) {
-    //     match pt.translate(start_vpn) {
-    //         Some(pte) => {
-    //             if pte.is_valid() {
-    //                 return -1;
-    //             }
-    //         }
-    //         None => {}
-    //     }
-    //     start_vpn.step();
-    // }
+    let mut start_vpn = start_va.floor();
+    let pt = PageTable::from_token(current_user_token());
+    for _ in 0..((len + PAGE_SIZE - 1) / PAGE_SIZE) { // ceil
+    // 找到这个len长度对应多少个页
+    // for _ in 0..(len / PAGE_SIZE) { WRONG
+        match pt.translate(start_vpn) {
+            Some(pte) => {
+                if pte.is_valid() {
+                    return -1;
+                }
+            }
+            None => {}
+        }
+        start_vpn.step();
+    }
 
     let mut permission = MapPermission::empty();
     if port & 0x1 != 0 {
