@@ -190,6 +190,13 @@ impl TaskManager {
         let current = inner.current_task;
         inner.tasks[current].memory_set.insert_framed_area(start_va, end_va, permission);
     }
+
+    /// Unmap an area in the current 'Running' task's memory set.
+    fn unmap_area(&self, start_va: VirtAddr, end_va: VirtAddr) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].memory_set.unmap_area(start_va, end_va);
+    }
 }
 
 /// Run the first task in task list.
@@ -258,4 +265,9 @@ pub fn update_syscall_times(syscall_id: usize) {
 /// Insert a new framed area into the current 'Running' task's memory set.
 pub fn insert_framed_area(start_va: VirtAddr, end_va: VirtAddr, permission: MapPermission) {
     TASK_MANAGER.insert_framed_area(start_va, end_va, permission);
+}
+
+/// Unmap an area in the current 'Running' task's memory set.
+pub fn unmap_area(start_va: VirtAddr, end_va: VirtAddr) {
+    TASK_MANAGER.unmap_area(start_va, end_va);
 }

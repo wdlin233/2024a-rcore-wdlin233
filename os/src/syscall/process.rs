@@ -6,7 +6,7 @@ use crate::{
     mm::{from_va_to_pa, VirtAddr, MapPermission, PageTable, StepByOne}, 
     task::{
         change_program_brk, current_user_token, exit_current_and_run_next, get_syscall_times, 
-        get_task_times, suspend_current_and_run_next, TaskStatus, insert_framed_area
+        get_task_times, suspend_current_and_run_next, TaskStatus, insert_framed_area, unmap_area
     }, 
     timer::get_time_us,
 };
@@ -86,6 +86,12 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     let end = start + len;
     let start_va = VirtAddr::from(start);
     let end_va = VirtAddr::from(end);
+    // check if start is page aligned
+    // 按页大小对齐
+    // 页对齐意味着一个虚拟地址是页大小的整数倍，即该地址是某一页的起始地址。
+    if start_va.page_offset() != 0 {
+        return -1;
+    }
 
     let mut start_vpn = start_va.floor();
     let pt = PageTable::from_token(current_user_token());
@@ -119,9 +125,32 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
 }
 
 // YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    //trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
+    let end = start + len;
+    let start_va = VirtAddr::from(start);
+    let end_va = VirtAddr::from(end);
+    if start_va.page_offset() != 0 {
+        return -1;
+    }
+
+    let mut start_vpn = start_va.floor();
+    let pt = PageTable::from_token(current_user_token());
+    for _ in 0..((len + PAGE_SIZE - 1) / PAGE_SIZE) { // ceil
+        match pt.translate(start_vpn) {
+            Some(pte) => {
+                if !pte.is_valid() {
+                    return -1;
+                }
+            }
+            None => {
+                return -1;
+            }
+        }
+        start_vpn.step();
+    }
+    unmap_area(start_va, end_va);
+    0
 }
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {

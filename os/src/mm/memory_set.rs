@@ -262,6 +262,16 @@ impl MemorySet {
             false
         }
     }
+
+    /// unmap the area
+    pub fn unmap_area(&mut self, start: VirtAddr, end: VirtAddr) {
+        let vpn_range = VPNRange::new(start.floor(), end.ceil());
+        // 对 Simple<VirtPageNum> 的迭代可见于 address.rs
+        // for 会自动对 Some(VirtPageNum) 解引用
+        for vpn in vpn_range{
+            self.page_table.unmap(vpn);
+        }
+    }
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {
