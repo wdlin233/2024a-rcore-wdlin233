@@ -193,7 +193,7 @@ pub fn translated_str(token: usize, ptr: *const u8) -> String {
             .translate_va(VirtAddr::from(va))
             .unwrap()
             .get_mut());
-        if ch == 0 {
+        if ch == 0 { // '\0'
             break;
         } else {
             string.push(ch as char);
