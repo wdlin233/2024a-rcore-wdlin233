@@ -2,17 +2,20 @@
 use alloc::sync::Arc;
 
 use crate::{
-    config::{MAX_SYSCALL_NUM, TRAP_CONTEXT_BASE},
+    config::{MAX_SYSCALL_NUM, TRAP_CONTEXT_BASE, PAGE_SIZE},
     loader::get_app_data_by_name,
     mm::{translated_refmut, translated_str, MemorySet, VirtAddr, KERNEL_SPACE},
     task::{
-        add_task, current_task, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus
+        add_task, current_task, current_task_info, current_user_token, 
+        exit_current_and_run_next, suspend_current_and_run_next, mmap, munmap, TaskStatus
     },
     trap::{TrapContext, trap_handler},
+    timer::{get_time_us, MICRO_PER_SEC, MSEC_PER_SEC},
+    util::UserSpacePtr,
 };
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TimeVal {
     pub sec: usize,
     pub usec: usize,
@@ -20,6 +23,7 @@ pub struct TimeVal {
 
 /// Task information
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct TaskInfo {
     /// Task status in it's life cycle
     status: TaskStatus,
@@ -118,40 +122,81 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_get_time(ts: 0x{ts:X?})",
         current_task().unwrap().pid.0
     );
-    -1
+    let now_us = get_time_us();
+    unsafe {
+        UserSpacePtr::from(ts).write(
+            TimeVal {
+                sec: now_us / MICRO_PER_SEC,
+                usec: now_us % MICRO_PER_SEC,
+            }
+        );
+    }
+    0
 }
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
-pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
+pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     trace!(
-        "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_task_info(ti: 0x{ti:X?})",
         current_task().unwrap().pid.0
     );
-    -1
+    let (status, info) = current_task_info();
+    let syscall_times = core::array::from_fn(|syscall_id| {
+        info.syscall_times
+            .get(&syscall_id)
+            .copied()
+            .unwrap_or_default()
+    });
+    let time_ms = {
+        let now_us = get_time_us();
+        let elapsed = now_us - info.running_times.first_run_time_us;
+        elapsed / (MICRO_PER_SEC / MSEC_PER_SEC)
+    };
+    unsafe {
+        UserSpacePtr::from(ti).write(
+            TaskInfo {
+                status,
+                syscall_times,
+                time: time_ms,
+            }
+        );
+    }
+    0
 }
 
 /// YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
+pub fn sys_mmap(addr: usize, len: usize, port: usize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_mmap(addr: 0x{addr:0X}, len: {len}, port: 0x{port:b})",
         current_task().unwrap().pid.0
     );
+    const PORT_MASK: usize = 0b111;
+    let addr_aligned = (addr % PAGE_SIZE) == 0;
+    let vaild_port = (port & !PORT_MASK) == 0;
+    let port_none = (port & PORT_MASK) == 0;
+    if addr_aligned && vaild_port && !port_none {
+        return mmap(addr, len, port);
+    }
     -1
 }
 
 /// YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
+pub fn sys_munmap(addr: usize, len: usize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_munmap(addr: 0x{addr:0X}, len: {len})",
         current_task().unwrap().pid.0
     );
+    let addr_aligned = addr % PAGE_SIZE == 0;
+    if addr_aligned {
+        return munmap(addr, len);
+    }
     -1
 }
 
@@ -168,10 +213,10 @@ pub fn sys_sbrk(size: i32) -> isize {
 /// YOUR JOB: Implement spawn.
 /// HINT: fork + exec =/= spawn
 pub fn sys_spawn(path: *const u8) -> isize {
-    // trace!(
-    //     "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
-    //     current_task().unwrap().pid.0
-    // );
+    trace!(
+        "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
+        current_task().unwrap().pid.0
+    );
     let token = current_user_token();
     let path = translated_str(token, path);
     if let Some(data) = get_app_data_by_name(path.as_str()) {
