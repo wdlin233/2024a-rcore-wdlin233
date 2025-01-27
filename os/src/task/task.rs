@@ -308,3 +308,19 @@ impl TaskControlBlockInner {
         self.memory_set.munmap(addr, len)
     }
 }
+
+impl TaskControlBlock {
+    /// spawn a process
+    pub fn spawn(self: &Arc<Self>, elf_data: &[u8]) -> Arc<Self> {
+        let child = Arc::new(TaskControlBlock::new(elf_data));
+        self.inner_exclusive_access()
+            .children
+            //.push(child);
+            // use Arc::clone(&self) instead
+            .push(Arc::clone(&child));
+        child.inner_exclusive_access()
+            .parent
+            = Some(Arc::downgrade(self));
+        child        
+    }
+}
