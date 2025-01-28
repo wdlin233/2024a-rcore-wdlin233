@@ -2,16 +2,9 @@
 use alloc::sync::Arc;
 
 use crate::{
-    config::{MAX_SYSCALL_NUM, TRAP_CONTEXT_BASE, PAGE_SIZE},
-    loader::get_app_data_by_name,
-    mm::{translated_refmut, translated_str, MemorySet, VirtAddr, KERNEL_SPACE},
-    task::{
-        add_task, current_task, current_task_info, current_user_token, 
-        exit_current_and_run_next, suspend_current_and_run_next, mmap, munmap, TaskStatus
-    },
-    trap::{TrapContext, trap_handler},
-    timer::{get_time_us, MICRO_PER_SEC, MSEC_PER_SEC},
-    util::UserSpacePtr,
+    config::{MAX_SYSCALL_NUM, PAGE_SIZE, TRAP_CONTEXT_BASE}, loader::get_app_data_by_name, mm::{translated_refmut, translated_str, MemorySet, VirtAddr, KERNEL_SPACE}, task::{
+        add_task, current_task, current_task_info, current_user_token, exit_current_and_run_next, mmap, munmap, suspend_current_and_run_next, Priority, TaskStatus
+    }, timer::{get_time_us, MICRO_PER_SEC, MSEC_PER_SEC}, trap::{trap_handler, TrapContext}, util::UserSpacePtr
 };
 
 #[repr(C)]
@@ -227,11 +220,16 @@ pub fn sys_spawn(path: *const u8) -> isize {
     }
 }
 
-// YOUR JOB: Set task priority.
-pub fn sys_set_priority(_prio: isize) -> isize {
+pub fn sys_set_priority(prio: isize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_set_priority(priority: {prio})",
         current_task().unwrap().pid.0
     );
-    -1
+    if let Ok(priority) = Priority::try_from(prio) { 
+        current_task().unwrap().inner_exclusive_access().set_priority(priority);
+        prio
+    }
+    else {
+        -1
+    }
 }

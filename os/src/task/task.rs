@@ -1,5 +1,5 @@
 //! Types related to task management & Functions for completely changing TCB
-use super::TaskContext;
+use super::{Priority, TaskContext};
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 use crate::config::TRAP_CONTEXT_BASE;
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
@@ -74,6 +74,9 @@ pub struct TaskControlBlockInner {
 
     /// task infos
     pub infos: TaskInfoBlock,
+
+    /// task priority
+    pub priority: Priority,
 }
 
 impl TaskControlBlockInner {
@@ -125,6 +128,7 @@ impl TaskControlBlock {
                     heap_bottom: user_sp,
                     program_brk: user_sp,
                     infos: TaskInfoBlock::new(),
+                    priority: Priority::default(),
                 })
             },
         };
@@ -199,6 +203,7 @@ impl TaskControlBlock {
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
                     infos: TaskInfoBlock::new(),
+                    priority: Priority::default(),
                 })
             },
         });

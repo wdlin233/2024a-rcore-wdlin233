@@ -20,6 +20,7 @@ mod processor;
 mod switch;
 #[allow(clippy::module_inception)]
 mod task;
+mod priority;
 
 use crate::loader::get_app_data_by_name;
 use alloc::sync::Arc;
@@ -31,6 +32,7 @@ pub use task::{TaskControlBlock, TaskStatus};
 pub use context::TaskContext;
 pub use id::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 pub use manager::add_task;
+pub use priority::Priority;
 pub use processor::{
     current_task, current_task_info, current_trap_cx, current_user_token, kernel_timer_start, 
     kernel_timer_stop, mmap, munmap, run_tasks, schedule, take_current_task, update_syscall_times,
