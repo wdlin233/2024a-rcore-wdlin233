@@ -42,5 +42,27 @@ pub fn add_task(task: Arc<TaskControlBlock>) {
 /// Take a process out of the ready queue
 pub fn fetch_task() -> Option<Arc<TaskControlBlock>> {
     //trace!("kernel: TaskManager::fetch_task");
-    TASK_MANAGER.exclusive_access().fetch()
+    // TASK_MANAGER.exclusive_access().fetch()
+    TASK_MANAGER.exclusive_access().stride_by_fetch()
+}
+
+impl TaskManager {
+    /// Take a process out of ready queue
+    pub fn stride_by_fetch(&mut self) -> Option<Arc<TaskControlBlock>> {
+        if let Some((index, _)) = self
+                .ready_queue
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, task)| task.inner_exclusive_access().stride) 
+        {
+            self.ready_queue
+                .swap_remove_back(index) // O(1) instead O(n)
+                .inspect(|task| task.inner_exclusive_access().update_stride())   
+                // how about use Option::map?
+                // Option::map return a new Option<T>, Some(f(value))
+                // but Option::inspect return the origin Option<T>, Some(value)
+        } else {
+            None
+        }
+    }
 }

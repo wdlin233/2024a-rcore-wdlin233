@@ -1,5 +1,6 @@
 //! Types related to task management & Functions for completely changing TCB
 use super::{Priority, TaskContext};
+use super::stride::Stride;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 use crate::config::TRAP_CONTEXT_BASE;
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
@@ -77,6 +78,9 @@ pub struct TaskControlBlockInner {
 
     /// task priority
     pub priority: Priority,
+
+    /// Take stride (for stride algorithm)
+    pub stride: Stride,
 }
 
 impl TaskControlBlockInner {
@@ -129,6 +133,7 @@ impl TaskControlBlock {
                     program_brk: user_sp,
                     infos: TaskInfoBlock::new(),
                     priority: Priority::default(),
+                    stride: Stride::default(),
                 })
             },
         };
@@ -204,6 +209,7 @@ impl TaskControlBlock {
                     program_brk: parent_inner.program_brk,
                     infos: TaskInfoBlock::new(),
                     priority: Priority::default(),
+                    stride: Stride::default(),
                 })
             },
         });
@@ -327,5 +333,17 @@ impl TaskControlBlock {
             .parent
             = Some(Arc::downgrade(self));
         child        
+    }
+}
+
+impl TaskControlBlockInner {
+    /// set task priority
+    pub fn set_priority(&mut self, priority: Priority) {
+        self.priority = priority
+    }
+    
+    /// update stride 
+    pub fn update_stride(&mut self) {
+        self.stride.step(self.priority);
     }
 }
