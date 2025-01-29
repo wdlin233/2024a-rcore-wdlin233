@@ -231,7 +231,9 @@ pub fn sys_set_priority(prio: isize) -> isize {
         current_task().unwrap().pid.0
     );
     if let Ok(priority) = Priority::try_from(prio) { 
-        current_task().unwrap().inner_exclusive_access().set_priority(priority);
+        current_task().unwrap()
+            .inner_exclusive_access()
+            .set_priority(priority);
         prio
     }
     else {

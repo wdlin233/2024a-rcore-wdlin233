@@ -2,35 +2,32 @@
 
 use core::isize;
 
-type PriorityInner = u32;
-
-/// Task Priority
-pub type Priority = PriorityImpl<PriorityInner>;
+type PriorityInner = isize;
 
 /// Task priority
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PriorityImpl<T>(pub(super) T);
+pub struct Priority(pub PriorityInner); 
 
-impl<T> PriorityImpl<T> {
-    pub const DEFAULT: isize = 16; // available in the whole module? 
+impl Priority {
+    /// default value for Priority
+    pub const DEFAULT: PriorityInner = 16; // available in the whole module? 
+
+    /// new with priority
+    pub fn new(value: PriorityInner) -> Self {
+        Self(value)
+    }
 }
 
-impl<T> Default for PriorityImpl<T> 
-where
-    T: TryFrom<isize>,
-    <T as TryFrom<isize>>::Error: core::fmt::Debug,
+impl Default for Priority 
 {
     fn default() -> Self {
-        Self(T::try_from(Self::DEFAULT).unwrap())
+        Self(Self::DEFAULT)
     }
     
 }
 
-impl<T> TryFrom<isize> for PriorityImpl<T> 
-where
-    T: TryFrom<isize>,
-    //<T as TryFrom<isize>>::Error: core::fmt::Debug,
+impl TryFrom<isize> for Priority 
 {
     type Error = ();
     
@@ -45,9 +42,10 @@ where
            // if T type conversion failed, return Err(TryFromIntError), then `unwrap()` kernel panicked
 
            // instead  
-           value @ 2..=isize::MAX => T::try_from(value)
+           value @ 2..=isize::MAX => PriorityInner::try_from(value)
                 .map(Self) // PriorityImpl<T>
                 .map_err(|_| ()), // type Error = ()
+            
            _ => Err(()),  
         }
     }
