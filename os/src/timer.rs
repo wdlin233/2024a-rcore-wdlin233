@@ -3,29 +3,34 @@
 use crate::config::CLOCK_FREQ;
 use crate::sbi::set_timer;
 use riscv::register::time;
-/// The number of ticks per second
-const TICKS_PER_SEC: usize = 100;
 /// The number of milliseconds per second
-const MSEC_PER_SEC: usize = 1000;
+pub const MSEC_PER_SEC: usize = 1000;
 /// The number of microseconds per second
-const MICRO_PER_SEC: usize = 1_000_000;
+#[allow(dead_code)]
+pub const MICRO_PER_SEC: usize = 1_000_000;
+
+/// Timer Tick
+pub type Tick = usize;
 
 /// Get the current time in ticks
-pub fn get_time() -> usize {
+pub fn get_time_tick() -> Tick {
     time::read()
 }
 
 /// get current time in milliseconds
+#[allow(dead_code)]
 pub fn get_time_ms() -> usize {
     time::read() * MSEC_PER_SEC / CLOCK_FREQ
 }
 
 /// get current time in microseconds
+#[allow(dead_code)]
 pub fn get_time_us() -> usize {
     time::read() * MICRO_PER_SEC / CLOCK_FREQ
 }
 
 /// Set the next timer interrupt
 pub fn set_next_trigger() {
-    set_timer(get_time() + CLOCK_FREQ / TICKS_PER_SEC);
+    // tick + 10ms * (tick/ms)
+    set_timer(get_time_tick() + 10 * CLOCK_FREQ / MSEC_PER_SEC);
 }

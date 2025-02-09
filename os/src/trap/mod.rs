@@ -17,7 +17,8 @@ mod context;
 use crate::config::{TRAMPOLINE, TRAP_CONTEXT_BASE};
 use crate::syscall::syscall;
 use crate::task::{
-    current_trap_cx, current_user_token, exit_current_and_run_next, suspend_current_and_run_next,
+    current_trap_cx, current_user_token, exit_current_and_run_next, kernel_timer_start, 
+    kernel_timer_stop, suspend_current_and_run_next, user_timer_start, user_timer_stop,
 };
 use crate::timer::set_next_trigger;
 use core::arch::{asm, global_asm};
@@ -56,6 +57,8 @@ pub fn enable_timer_interrupt() {
 /// trap handler
 #[no_mangle]
 pub fn trap_handler() -> ! {
+    user_timer_stop();
+    kernel_timer_start();
     set_kernel_trap_entry();
     let scause = scause::read();
     let stval = stval::read();
@@ -103,6 +106,8 @@ pub fn trap_handler() -> ! {
             );
         }
     }
+    kernel_timer_stop();
+    user_timer_start();
     //println!("before trap_return");
     trap_return();
 }
@@ -125,10 +130,10 @@ pub fn trap_return() -> ! {
     unsafe {
         asm!(
             "fence.i",
-            "jr {restore_va}",
+            "jr {restore_va}",         // jump to new addr of __restore asm function
             restore_va = in(reg) restore_va,
-            in("a0") trap_cx_ptr,
-            in("a1") user_satp,
+            in("a0") trap_cx_ptr,      // a0 = virt addr of Trap Context
+            in("a1") user_satp,        // a1 = phy addr of usr page table
             options(noreturn)
         );
     }

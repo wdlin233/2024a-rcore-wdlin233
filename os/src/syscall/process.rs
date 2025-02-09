@@ -1,19 +1,20 @@
 //! Process management syscalls
-//!
 use alloc::sync::Arc;
 
 use crate::{
-    config::MAX_SYSCALL_NUM,
+    config::{MAX_SYSCALL_NUM, PAGE_SIZE},
     fs::{open_file, OpenFlags},
     mm::{translated_refmut, translated_str},
     task::{
-        add_task, current_task, current_user_token, exit_current_and_run_next,
-        suspend_current_and_run_next, TaskStatus,
+        add_task, current_task, current_task_info, current_user_token, exit_current_and_run_next,
+        mmap, munmap, suspend_current_and_run_next, Priority, TaskStatus, 
     },
+    timer::{get_time_us, MICRO_PER_SEC, MSEC_PER_SEC}, 
+    util::UserSpacePtr,
 };
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TimeVal {
     pub sec: usize,
     pub usec: usize,
@@ -21,6 +22,7 @@ pub struct TimeVal {
 
 /// Task information
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct TaskInfo {
     /// Task status in it's life cycle
     status: TaskStatus,
@@ -30,14 +32,16 @@ pub struct TaskInfo {
     time: usize,
 }
 
+/// task exits and submit an exit code
 pub fn sys_exit(exit_code: i32) -> ! {
     trace!("kernel:pid[{}] sys_exit", current_task().unwrap().pid.0);
     exit_current_and_run_next(exit_code);
     panic!("Unreachable in sys_exit!");
 }
 
+/// current task gives up resources for other tasks
 pub fn sys_yield() -> isize {
-    //trace!("kernel: sys_yield");
+    trace!("kernel:pid[{}] sys_yield", current_task().unwrap().pid.0);
     suspend_current_and_run_next();
     0
 }
@@ -79,7 +83,7 @@ pub fn sys_exec(path: *const u8) -> isize {
 /// If there is not a child process whose pid is same as given, return -1.
 /// Else if there is a child process but it is still running, return -2.
 pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
-    //trace!("kernel: sys_waitpid");
+    trace!("kernel::pid[{}] sys_waitpid [{}]", current_task().unwrap().pid.0, pid);
     let task = current_task().unwrap();
     // find a child process
 
@@ -101,6 +105,7 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
     if let Some((idx, _)) = pair {
         let child = inner.children.remove(idx);
         // confirm that child will be deallocated after being removed from children list
+        // .remove() return what is removed before 
         assert_eq!(Arc::strong_count(&child), 1);
         let found_pid = child.getpid();
         // ++++ temporarily access child PCB exclusively
@@ -117,40 +122,81 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_get_time(ts: 0x{ts:X?})",
         current_task().unwrap().pid.0
     );
-    -1
+    let now_us = get_time_us();
+    unsafe {
+        UserSpacePtr::from(ts).write(
+            TimeVal {
+                sec: now_us / MICRO_PER_SEC,
+                usec: now_us % MICRO_PER_SEC,
+            }
+        );
+    }
+    0
 }
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
-pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
+pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     trace!(
-        "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_task_info(ti: 0x{ti:X?})",
         current_task().unwrap().pid.0
     );
-    -1
+    let (status, info) = current_task_info();
+    let syscall_times = core::array::from_fn(|syscall_id| {
+        info.syscall_times
+            .get(&syscall_id)
+            .copied()
+            .unwrap_or_default()
+    });
+    let time_ms = {
+        let now_us = get_time_us();
+        let elapsed = now_us - info.running_times.first_run_time_us;
+        elapsed / (MICRO_PER_SEC / MSEC_PER_SEC)
+    };
+    unsafe {
+        UserSpacePtr::from(ti).write(
+            TaskInfo {
+                status,
+                syscall_times,
+                time: time_ms,
+            }
+        );
+    }
+    0
 }
 
 /// YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
+pub fn sys_mmap(addr: usize, len: usize, port: usize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_mmap(addr: 0x{addr:0X}, len: {len}, port: 0x{port:b})",
         current_task().unwrap().pid.0
     );
+    const PORT_MASK: usize = 0b111;
+    let addr_aligned = (addr % PAGE_SIZE) == 0;
+    let vaild_port = (port & !PORT_MASK) == 0;
+    let port_none = (port & PORT_MASK) == 0;
+    if addr_aligned && vaild_port && !port_none {
+        return mmap(addr, len, port);
+    }
     -1
 }
 
 /// YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
+pub fn sys_munmap(addr: usize, len: usize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_munmap(addr: 0x{addr:0X}, len: {len})",
         current_task().unwrap().pid.0
     );
+    let addr_aligned = addr % PAGE_SIZE == 0;
+    if addr_aligned {
+        return munmap(addr, len);
+    }
     -1
 }
 
@@ -164,21 +210,36 @@ pub fn sys_sbrk(size: i32) -> isize {
     }
 }
 
-/// YOUR JOB: Implement spawn.
-/// HINT: fork + exec =/= spawn
-pub fn sys_spawn(_path: *const u8) -> isize {
+pub fn sys_spawn(path: *const u8) -> isize {
+    let token = current_user_token();
+    let path = translated_str(token, path);
     trace!(
-        "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_spawn with path: {path}",
         current_task().unwrap().pid.0
     );
-    -1
+    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
+        let elf_data = app_inode.read_all();
+        let new_task = current_task().unwrap().spawn(&elf_data);
+        let new_pid = new_task.getpid();
+        add_task(new_task);
+        new_pid as isize
+    } else {
+        -1
+    }
 }
 
-// YOUR JOB: Set task priority.
-pub fn sys_set_priority(_prio: isize) -> isize {
+pub fn sys_set_priority(prio: isize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_set_priority(priority: {prio})",
         current_task().unwrap().pid.0
     );
-    -1
+    if let Ok(priority) = Priority::try_from(prio) { 
+        current_task().unwrap()
+            .inner_exclusive_access()
+            .set_priority(priority);
+        prio
+    }
+    else {
+        -1
+    }
 }

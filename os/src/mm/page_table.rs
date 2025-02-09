@@ -65,6 +65,7 @@ impl PageTableEntry {
 }
 
 /// page table structure
+#[derive(Debug)]
 pub struct PageTable {
     root_ppn: PhysPageNum,
     frames: Vec<FrameTracker>,
@@ -146,7 +147,9 @@ impl PageTable {
     /// get the physical address from the virtual address
     pub fn translate_va(&self, va: VirtAddr) -> Option<PhysAddr> {
         self.find_pte(va.clone().floor()).map(|pte| {
+            //println!("translate_va:va = {:?}", va);
             let aligned_pa: PhysAddr = pte.ppn().into();
+            //println!("translate_va:pa_align = {:?}", aligned_pa);
             let offset = va.page_offset();
             let aligned_pa_usize: usize = aligned_pa.into();
             (aligned_pa_usize + offset).into()

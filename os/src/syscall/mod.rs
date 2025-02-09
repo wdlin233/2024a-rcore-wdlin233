@@ -54,13 +54,78 @@ const SYSCALL_TASK_INFO: usize = 410;
 mod fs;
 mod process;
 
+use alloc::collections::btree_map::BTreeMap;
 use fs::*;
 use process::*;
-
 use crate::fs::Stat;
+
+use crate::{sync::UPSafeCell, task::update_syscall_times};
+
+/// Checker state in syscall
+struct SyscallCheckerState {
+    // assert all sys_func will return
+    counter: BTreeMap<usize, i32>,
+}
+
+impl SyscallCheckerState {
+    /// Construct a syscall checker
+    const fn new() -> Self {
+        Self {
+            counter: BTreeMap::new()
+        }
+    }
+}
+
+static CHECKER_STATE: UPSafeCell<SyscallCheckerState> = unsafe {
+    UPSafeCell::const_new(SyscallCheckerState::new())
+};
+
+/// Syscall checker
+#[allow(dead_code)]
+struct SyscallChecker<Args> {
+    syscall_id: usize,
+    args: Args,
+}
+
+impl<Args> SyscallChecker<Args> {
+    fn new(syscall_id: usize, args: Args) -> SyscallChecker<Args> {
+        let checker = SyscallChecker {
+            syscall_id,
+            args    
+        };
+        checker.start();
+        checker
+    }
+    fn start(&self) {
+        let mut state = CHECKER_STATE.exclusive_access();
+        assert!(state.counter.iter()
+            .filter(|(&id, _)| id != SYSCALL_YIELD && id != SYSCALL_EXIT)
+            .all(|(_, &times)| times == 0),
+            "counter: {:?}", state.counter
+        );
+        *state.counter.entry(self.syscall_id).or_default() += 1;        
+    }
+    fn finalize(&self) {
+        let mut state = CHECKER_STATE.exclusive_access();
+        *state.counter.entry(self.syscall_id).or_default() -= 1;        
+        assert!(state.counter.iter()
+            .filter(|(&id, _)| id != SYSCALL_YIELD && id != SYSCALL_EXIT)
+            .all(|(_, &times)| times == 0),
+            "counter: {:?}", state.counter
+        );
+    }
+}
+
+impl<Args> Drop for SyscallChecker<Args> {
+    fn drop(&mut self) {
+        self.finalize();
+    }
+}
 
 /// handle syscall exception with `syscall_id` and other arguments
 pub fn syscall(syscall_id: usize, args: [usize; 4]) -> isize {
+    let _guard = SyscallChecker::new(syscall_id, args);
+    update_syscall_times(syscall_id);
     match syscall_id {
         SYSCALL_OPEN => sys_open(args[1] as *const u8, args[2] as u32),
         SYSCALL_CLOSE => sys_close(args[0]),
