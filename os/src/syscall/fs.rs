@@ -2,6 +2,7 @@
 use crate::fs::{open_file, OpenFlags, Stat};
 use crate::mm::{translated_byte_buffer, translated_str, UserBuffer};
 use crate::task::{current_task, current_user_token};
+use crate::util::UserSpacePtr;
 
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
     trace!("kernel:pid[{}] sys_write", current_task().unwrap().pid.0);
@@ -75,13 +76,35 @@ pub fn sys_close(fd: usize) -> isize {
     0
 }
 
-/// YOUR JOB: Implement fstat.
-pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
+/// fstat implement
+pub fn sys_fstat(fd: usize, st: *mut Stat) -> isize {
     trace!(
-        "kernel:pid[{}] sys_fstat NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_fstat(fd: {fd})",
         current_task().unwrap().pid.0
     );
-    -1
+    
+    // let task = current_task().unwrap();
+    // let inner = task.inner_exclusive_access(); // 对 task 的可变借用
+    // if let Some(Some(file)) = inner.fd_table.get(fd) {
+    //     let stat: Stat = file.status().into();
+    //     unsafe {
+    //         UserSpacePtr::from(st).write(stat);
+    //     }
+    // }
+
+    let task = current_task().unwrap();
+    let stat = {
+        let inner = task.inner_exclusive_access(); // RefMut
+        let Some(file) = &inner.fd_table[fd] else {
+            return -1;
+        };
+        file.status().into()
+    };
+    // 可能是 write() 出发了对 task(或者说 stat) 的借用，与 inner 对 task 的借用发生冲突
+    unsafe {
+        UserSpacePtr::from(st).write(stat); // Vec<&mut [u8]>
+    }
+    0
 }
 
 /// YOUR JOB: Implement linkat.
