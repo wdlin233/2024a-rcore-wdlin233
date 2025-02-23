@@ -81,8 +81,10 @@ type DataBlock = [u8; BLOCK_SZ];
 /// A disk inode
 #[repr(C)]
 pub struct DiskInode {
-    pub size: u32,
-    pub direct: [u32; INODE_DIRECT_COUNT],
+    // file size
+    pub size: u32, 
+    // direct address
+    pub direct: [u32; INODE_DIRECT_COUNT], 
     pub indirect1: u32,
     pub indirect2: u32,
     type_: DiskInodeType,
@@ -438,5 +440,21 @@ impl DirEntry {
 impl DiskInode {
     pub fn links_count(&self) -> u32 {
         self.links_count
+    }
+
+    /// Increase link count
+    pub fn new_link(&mut self) {
+        self.links_count += 1;
+    }
+
+    /// Decrease link count
+    pub fn unlink(&mut self) {
+        self.links_count -= 1;
+    }
+
+    /// Decrease the size of current disk inode
+    pub fn decrease_size_to(&mut self, new_size: u32) {
+        self.size = new_size;
+        // then deallocate space
     }
 }

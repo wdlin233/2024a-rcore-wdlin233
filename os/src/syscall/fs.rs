@@ -1,5 +1,5 @@
 //! File and filesystem-related syscalls
-use crate::fs::{open_file, OpenFlags, Stat};
+use crate::fs::{open_file, link_at, unlink_at, OpenFlags, Stat};
 use crate::mm::{translated_byte_buffer, translated_str, UserBuffer};
 use crate::task::{current_task, current_user_token};
 use crate::util::UserSpacePtr;
@@ -107,20 +107,28 @@ pub fn sys_fstat(fd: usize, st: *mut Stat) -> isize {
     0
 }
 
-/// YOUR JOB: Implement linkat.
-pub fn sys_linkat(_old_name: *const u8, _new_name: *const u8) -> isize {
+/// linkat
+pub fn sys_linkat(old_path: *const u8, new_path: *const u8) -> isize {
+    let token = current_user_token();
+    let (old_path, new_path) = (
+        translated_str(token, old_path),
+        translated_str(token, new_path),
+    );
     trace!(
-        "kernel:pid[{}] sys_linkat NOT IMPLEMENTED",
+        r#"kernel:pid[{}] sys_linkat("{old_path}", "{new_path}")"#,
         current_task().unwrap().pid.0
     );
-    -1
+    link_at(&old_path, &new_path)
 }
 
-/// YOUR JOB: Implement unlinkat.
-pub fn sys_unlinkat(_name: *const u8) -> isize {
+/// unlinkat
+pub fn sys_unlinkat(path_name: *const u8) -> isize {
+    let token = current_user_token();
+    let path_name = translated_str(token, path_name);
     trace!(
-        "kernel:pid[{}] sys_unlinkat NOT IMPLEMENTED",
+        // Raw strings allow us to write a sequence of characters verbatim by starting with `r#"` and ending with `"#`
+        r#"kernel:pid[{}] sys_unlinkat ("{path_name}")"#,
         current_task().unwrap().pid.0
     );
-    -1
+    unlink_at(&path_name)
 }
