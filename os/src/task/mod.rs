@@ -35,9 +35,10 @@ pub use manager::{add_task, pid2process, remove_from_pid2process, remove_task, w
 pub use processor::{
     current_kstack_top, current_process, current_task, current_trap_cx, current_trap_cx_user_va,
     current_user_token, run_tasks, schedule, take_current_task,
+    user_timer_start, kernel_timer_start, user_timer_stop, kernel_timer_stop, update_syscall_times, current_task_info
 };
 pub use signal::SignalFlags;
-pub use task::{TaskControlBlock, TaskStatus};
+pub use task::{TaskControlBlock, TaskStatus, TaskInfoBlock, TaskControlBlockInner};
 
 /// Make current task suspended and switch to the next task
 pub fn suspend_current_and_run_next() {

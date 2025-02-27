@@ -6,6 +6,7 @@ use crate::trap::TrapContext;
 use crate::{mm::PhysPageNum, sync::UPSafeCell};
 use alloc::sync::{Arc, Weak};
 use core::cell::RefMut;
+use alloc::collections::btree_map::BTreeMap;
 
 /// Task control block structure
 pub struct TaskControlBlock {
@@ -30,7 +31,9 @@ impl TaskControlBlock {
     }
 }
 
+/// TaskControlBlockInner
 pub struct TaskControlBlockInner {
+    /// res
     pub res: Option<TaskUserRes>,
     /// The physical page number of the frame where the trap context is placed
     pub trap_cx_ppn: PhysPageNum,
@@ -41,9 +44,12 @@ pub struct TaskControlBlockInner {
     pub task_status: TaskStatus,
     /// It is set when active exit or execution error occurs
     pub exit_code: Option<i32>,
+    /// task infos
+    pub infos: TaskInfoBlock,
 }
 
 impl TaskControlBlockInner {
+    /// get trap cx
     pub fn get_trap_cx(&self) -> &'static mut TrapContext {
         self.trap_cx_ppn.get_mut()
     }
@@ -75,6 +81,7 @@ impl TaskControlBlock {
                     task_cx: TaskContext::goto_trap_return(kstack_top),
                     task_status: TaskStatus::Ready,
                     exit_code: None,
+                    infos: TaskInfoBlock::new(),
                 })
             },
         }
@@ -90,4 +97,48 @@ pub enum TaskStatus {
     Running,
     /// blocked
     Blocked,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+/// TaskInfoBlock
+pub struct TaskInfoBlock {
+    /// syscall times
+    pub syscall_times: BTreeMap<usize, u32>,
+    /// total running times
+    pub running_times: RunningTimeInfo,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct RunningTimeInfo {
+    pub user_time_us: usize,
+    pub kernel_time_us: usize,
+    pub first_run_time_us: usize,
+}
+
+impl TaskInfoBlock {
+    /// create a new TaskInfoBlock object
+    pub fn new() -> Self {
+        Self {
+            syscall_times: BTreeMap::new(),
+            running_times: Default::default(), // had derive Default
+        }
+    }
+}
+
+impl Default for TaskInfoBlock {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TaskControlBlockInner {
+    /// Update sysycall times
+    pub fn update_syscall_times(&mut self, syscall_id: usize) {
+        *self.infos.syscall_times.entry(syscall_id).or_default() += 1;
+    }
+
+    /// Get current task info
+    pub fn task_info(&self) -> (TaskStatus, TaskInfoBlock) {
+        (self.task_status, self.infos.clone())
+    }
 }

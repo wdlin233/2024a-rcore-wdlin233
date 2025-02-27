@@ -19,6 +19,7 @@ use crate::syscall::syscall;
 use crate::task::{
     check_signals_of_current, current_add_signal, current_trap_cx, current_trap_cx_user_va,
     current_user_token, exit_current_and_run_next, suspend_current_and_run_next, SignalFlags,
+    user_timer_stop, kernel_timer_start, user_timer_start, kernel_timer_stop,
 };
 use crate::timer::{check_timer, set_next_trigger};
 use core::arch::{asm, global_asm};
@@ -60,6 +61,8 @@ pub fn enable_timer_interrupt() {
 /// trap handler
 #[no_mangle]
 pub fn trap_handler() -> ! {
+    user_timer_stop();
+    kernel_timer_start();
     set_kernel_trap_entry();
     let scause = scause::read();
     let stval = stval::read();
@@ -110,6 +113,8 @@ pub fn trap_handler() -> ! {
         trace!("[kernel] trap_handler: .. check signals {}", msg);
         exit_current_and_run_next(errno);
     }
+    kernel_timer_stop();
+    user_timer_start();
     trap_return();
 }
 

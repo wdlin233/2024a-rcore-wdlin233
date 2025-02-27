@@ -5,7 +5,10 @@ use crate::{
     task::{
         current_process, current_task, current_user_token, exit_current_and_run_next, pid2process,
         suspend_current_and_run_next, SignalFlags, TaskStatus,
+        current_task_info,
     },
+    timer::{get_time_us, MICRO_PER_SEC, MSEC_PER_SEC},
+    util::UserSpacePtr,
 };
 use alloc::{string::String, sync::Arc, vec::Vec};
 
@@ -162,12 +165,21 @@ pub fn sys_kill(pid: usize, signal: u32) -> isize {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_get_time(ts: 0x{ts:X?})",
         current_task().unwrap().process.upgrade().unwrap().getpid()
     );
-    -1
+    let now_us = get_time_us();
+    unsafe {
+        UserSpacePtr::from(ts).write(
+            TimeVal {
+                sec: now_us / MICRO_PER_SEC,
+                usec: now_us % MICRO_PER_SEC,
+            }
+        );
+    }
+    0
 }
 
 /// task_info syscall
@@ -175,12 +187,33 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
 /// YOUR JOB: Finish sys_task_info to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
-pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
+pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     trace!(
-        "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_task_info(ti: 0x{ti:X?})",
         current_task().unwrap().process.upgrade().unwrap().getpid()
     );
-    -1
+    let (status, info) = current_task_info();
+    let syscall_times = core::array::from_fn(|syscall_id| {
+        info.syscall_times
+            .get(&syscall_id)
+            .copied()
+            .unwrap_or_default()
+    });
+    let time_ms = {
+        let now_us = get_time_us();
+        let elapsed = now_us - info.running_times.first_run_time_us;
+        elapsed / (MICRO_PER_SEC / MSEC_PER_SEC)
+    };
+    unsafe {
+        UserSpacePtr::from(ti).write(
+            TaskInfo {
+                status,
+                syscall_times,
+                time: time_ms,
+            }
+        );
+    }
+    0
 }
 
 /// mmap syscall
