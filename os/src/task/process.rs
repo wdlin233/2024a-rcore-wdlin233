@@ -193,6 +193,8 @@ impl ProcessControlBlock {
             })
             .collect();
         
+        // from low addr to high addr
+        // argv content
         user_sp = argv_st;
         for i in 0..args.len() {
             *argv[i] = user_sp;
@@ -206,6 +208,7 @@ impl ProcessControlBlock {
         }        
         *argv[args.len()] = 0;
 
+        // argc
         user_sp = argv_base;
         *translated_refmut(
             new_token,
