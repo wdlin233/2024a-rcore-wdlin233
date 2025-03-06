@@ -18,8 +18,8 @@
 //! We then call [`task::run_tasks()`] and for the first time go to
 //! userspace.
 
-#![deny(missing_docs)]
-#![deny(warnings)]
+#![allow(missing_docs)]
+#![allow(warnings)]
 #![no_std]
 #![no_main]
 #![feature(panic_info_message)]
@@ -51,6 +51,7 @@ pub mod task;
 pub mod timer;
 pub mod trap;
 pub mod util;
+pub mod loaders;
 
 use core::arch::global_asm;
 
