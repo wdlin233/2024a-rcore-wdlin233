@@ -65,7 +65,7 @@ impl<'a> ElfLoader<'a> {
         {
             // 找到第一段指示的地址
             let phdr = header.virtual_addr() as usize;
-            error!("phdr = {:x}, off {:x}", phdr, self.elf.header.pt2.ph_offset());
+            debug!("phdr = {:x}, off {:x}", phdr, self.elf.header.pt2.ph_offset());
             // 如果是 0，如 libc.so，则需要放到一个非零的合法地址。此处规定从某个特定位置开始往后找。
             // 这样设置是因为，动态库运行时可能会mmap实际的用户程序且指定 MAP_FIXED，
             // 而用户程序的地址一般较低。为了让它们直接尽可能不冲突，所以会放到稍高的地址
