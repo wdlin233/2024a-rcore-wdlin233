@@ -10,6 +10,8 @@
 //! `sys_` then the name of the syscall. You can find functions like this in
 //! submodules, and you should also implement syscalls this way.
 
+/// ioctl syscall
+pub const  SYSCALL_IOCTL: usize = 29;
 /// openat syscall
 pub const SYSCALL_OPENAT: usize = 56;
 /// close syscall
@@ -22,10 +24,16 @@ pub const SYSCALL_WRITE: usize = 64;
 pub const SYSCALL_UNLINKAT: usize = 35;
 /// linkat syscall
 pub const SYSCALL_LINKAT: usize = 37;
+/// writev syscall
+pub const SYSCALL_WRITEV: usize = 66;
 /// fstat syscall
 pub const SYSCALL_FSTAT: usize = 80;
 /// exit syscall
 pub const SYSCALL_EXIT: usize = 93;
+/// exit_group
+pub const SYSCALL_EXIT_GROUP: usize = 94;
+/// set_tid_address syscall
+pub const  SYSCALL_TID_ADDRESS: usize = 96;
 /// sleep syscall
 pub const SYSCALL_SLEEP: usize = 101;
 /// yield syscall
@@ -105,11 +113,13 @@ mod fs;
 mod process;
 mod sync;
 mod thread;
+mod lab;
 
 use fs::*;
 use process::*;
 use sync::*;
 use thread::*;
+use lab::*;
 
 use crate::fs::Stat;
 use crate::task::update_syscall_times;
@@ -154,6 +164,10 @@ pub fn syscall(syscall_id: usize, args: [usize; 4]) -> isize {
         SYSCALL_CONDVAR_SIGNAL => sys_condvar_signal(args[0]),
         SYSCALL_CONDVAR_WAIT => sys_condvar_wait(args[0], args[1]),
         SYSCALL_KILL => sys_kill(args[0], args[1] as u32),
+        SYSCALL_TID_ADDRESS => sys_getpid(),
+        SYSCALL_IOCTL => sys_ioctl(),
+        SYSCALL_WRITEV => sys_writev(args[0], args[1] as *const IoVec, args[2]),
+        SYSCALL_EXIT_GROUP => sys_exit(0),
         _ => panic!("Unsupported syscall_id: {}", syscall_id),
     }
 }
