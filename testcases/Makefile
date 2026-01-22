@@ -10,7 +10,7 @@ LIBS := $(wildcard $(LIB_DIR)/*.c)
 ASM := $(wildcard $(LIB_DIR)/*.S)
 LIBS_OBJ := $(LIBS:%.c=%.o) $(ASM:%.S=%.o) 
 SRCS := $(wildcard $(APP_DIR)/*.c)
-APPS := $(addprefix $(APP_DIR)/, 42 hello)
+APPS := $(addprefix $(APP_DIR)/, 42 hello ascii_animation interactive_menu ascii_game)
 STDAPPS := $(addprefix $(APP_DIR)/, hellostd)
 
 build: clean $(LIBS_OBJ) $(APPS) $(STDAPPS)

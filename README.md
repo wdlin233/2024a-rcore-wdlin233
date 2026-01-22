@@ -2,6 +2,23 @@
 
 ### Code
 - [Soure Code of labs for 2024A](https://github.com/LearningOS/rCore-Camp-Code-2024A)
+
+### Interactive User Applications 🎮
+
+**New!** This repository includes example interactive user applications that demonstrate what you can create with rCore OS:
+
+- 📺 **ASCII Animations** - "Bad Apple" style character animations with frame control
+- 🎯 **Interactive Menus** - Menu-driven CLI applications
+- 🎲 **Text Games** - Number guessing game and more
+- 📊 **Progress Bars** - Real-time progress visualization
+
+**Quick Links:**
+- [Interactive Apps README](./INTERACTIVE_APPS_README.md) - Quick overview
+- [Detailed Guide](./INTERACTIVE_APPS_GUIDE.md) - Complete technical documentation
+- Example Apps: [`testcases/src/`](./testcases/src/) - ascii_animation.c, interactive_menu.c, ascii_game.c
+
+**Answer to "Can I create Bad Apple on rCore?"** - **YES!** ✅ See the guide for details.
+
 ### Documents
 
 - Concise Manual: [rCore-Camp-Guide-2024A](https://LearningOS.github.io/rCore-Camp-Guide-2024A/)
